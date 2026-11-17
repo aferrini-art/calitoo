@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analysis of Calitoo sun photometer data (AOT at 465/540/619 nm).
+"""Analysis of Calitoo sun photometer data (AOD at 465/540/619 nm).
 
 Reads every file listed in FILE_SITES, merges them into one DataFrame,
 writes output/calitoo_all.csv and output/summary.csv and creates the plots
@@ -30,7 +30,7 @@ FILE_SITES = {
     "calitoo_oct6.txt": "Zurich",
     "calitoo_oct7.txt": "Davos",
     "calitoo_oct10.txt": "Lugano",
-    # 14 Nov: calibration attempt outside Bern until 14:00 local (CET), then AOT in Bern
+    # 14 Nov: calibration attempt outside Bern until 14:00 local (CET), then AOD in Bern
     "calitoo_nov14.txt": [("00:00", "Near Bern"), ("14:00", "Bern")],
 }
 
@@ -152,7 +152,7 @@ def load_all() -> pd.DataFrame:
                                       nom.map(lambda s: s["lat"]),
                                       nom.map(lambda s: s["lon"]))
 
-    # AOT at 500 nm extrapolated with each measurement's own Ångström exponent
+    # AOD at 500 nm extrapolated with each measurement's own Ångström exponent
     df["aot_500"] = df["aot_540"] * (500.0 / 540.0) ** (-df["angstrom"])
     # air mass (Kasten & Young 1989 approximation)
     h = df["sun_elev_deg"]
@@ -174,7 +174,7 @@ def load_all() -> pd.DataFrame:
         sess.append((gap.isna() | (gap >= SESSION_GAP_MIN)).cumsum())
     df["session"] = pd.concat(sess).astype(int)
     df["session_id"] = df["day_key"] + "_S" + df["session"].astype(str)
-    # robust within-session outlier (thin cloud / pointing): AOT 540 further from
+    # robust within-session outlier (thin cloud / pointing): AOD 540 further from
     # the session median than max(3·σ_MAD, OUTLIER_REL·median)
     def _outlier(x):
         if len(x) < 4:
@@ -205,7 +205,7 @@ def day_styles(df):
 
 
 def angstrom_fit(aot):
-    """Fit AOT = β·λ^(-α), λ in µm. Returns (α, β, R²)."""
+    """Fit AOD = β·λ^(-α), λ in µm. Returns (α, β, R²)."""
     x, y = np.log(WL / 1000.0), np.log(np.asarray(aot, float))
     slope, intercept = np.polyfit(x, y, 1)
     r = np.corrcoef(x, y)[0, 1]
@@ -252,7 +252,7 @@ def save(fig, name):
 
 
 def plot_bands_timeseries(ax, g, ylim=None, legend=True):
-    """AOT of the 3 bands vs time; lines broken between sessions; QC-flagged = x."""
+    """AOD of the 3 bands vs time; lines broken between sessions; QC-flagged = x."""
     for wl, c in zip(WL.astype(int), BANDS):
         col = BAND_COLORS[wl]
         for _, s in g.groupby("session"):
@@ -282,7 +282,7 @@ def fig_daily(df, st):
     for k, g in df.groupby("day_key", observed=True):
         fig, ax = plt.subplots(figsize=(10, 5.5))
         plot_bands_timeseries(ax, g)
-        ax.set_ylabel("AOT")
+        ax.set_ylabel("AOD")
         ax.set_ylim(bottom=0)
         ax.set_title(st[k]["label"])
         d = g["datetime_utc"].iat[0]
@@ -298,8 +298,8 @@ def fig_timeseries_all(df, st):
         plot_bands_timeseries(ax, g, ylim=(0, ymax), legend=(i == 0))
         ax.set_title(st[k]["label"], fontsize=14)
         ax.tick_params(axis="x", rotation=30)
-    np.atleast_1d(axes)[0].set_ylabel("AOT")
-    fig.suptitle("AOT at 465/540/619 nm – all days (same scale)", y=1.02)
+    np.atleast_1d(axes)[0].set_ylabel("AOD")
+    fig.suptitle("AOD at 465/540/619 nm – all days (same scale)", y=1.02)
     fig.tight_layout()
     save(fig, "aot_timeseries_all.png")
 
@@ -339,8 +339,8 @@ def fig_spectrum(df, st, spec):
     ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.2f"))
     ax.yaxis.set_minor_formatter(matplotlib.ticker.FormatStrFormatter("%.2f"))
     ax.set_xlabel("Wavelength (nm)")
-    ax.set_ylabel("AOT")
-    ax.set_title("AOT spectrum per site/day – fit AOT = β·λ$^{-α}$ (λ in µm)")
+    ax.set_ylabel("AOD")
+    ax.set_title("AOD spectrum per site/day – fit AOD = β·λ$^{-α}$ (λ in µm)")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), frameon=False, fontsize=12,
               title="mean of sessions (bars = std of measurements); in brackets: mean of col. 15",
               title_fontsize=11)
@@ -395,9 +395,9 @@ def fig_aot_box(df, st):
             b.set(facecolor=BAND_COLORS[wl], alpha=0.75, edgecolor="white")
     ax.set_xticks(range(len(keys)))
     ax.set_xticklabels([st[k]["short"].replace(" – ", "\n") for k in keys])
-    ax.set_ylabel("AOT")
+    ax.set_ylabel("AOD")
     ax.set_ylim(bottom=0)
-    ax.set_title("AOT distribution per site/day (QC-passed only)")
+    ax.set_title("AOD distribution per site/day (QC-passed only)")
     ax.legend(handles=[plt.Rectangle((0, 0), 1, 1, color=BAND_COLORS[w], alpha=0.75,
                                      label=f"{w} nm") for w in WL.astype(int)],
               frameon=False, loc="upper right")
@@ -431,17 +431,17 @@ def fig_aot_altitude(df, st):
                     xytext=off, textcoords="offset points", ha=ha, va=va, fontsize=12,
                     color="#333333")
     ax.set_xlabel("Site altitude (m, GPS median)")
-    ax.set_ylabel("AOT")
+    ax.set_ylabel("AOD")
     ax.set_ylim(0, None)
     ax.set_xlim(site_alt.min() - 250, site_alt.max() + 250)
     h = [Line2D([], [], marker=st[k]["marker"], color=st[k]["color"], ls="", ms=10,
                 label=f"{st[k]['short']}  (n={(ok['day_key'] == k).sum()})")
          for k in df["day_key"].cat.categories]
-    h += [Line2D([], [], marker="o", color="gray", ls="", ms=10, label="AOT 500 nm (filled)"),
+    h += [Line2D([], [], marker="o", color="gray", ls="", ms=10, label="AOD 500 nm (filled)"),
           Line2D([], [], marker="o", mfc="white", mec="gray", ls="", ms=9,
-                 label="AOT 540 nm (open)")]
+                 label="AOD 540 nm (open)")]
     ax.legend(handles=h, frameon=False, loc="upper center", ncol=2, fontsize=11)
-    ax.set_title("Mean AOT vs altitude (bars = std of measurements)")
+    ax.set_title("Mean AOD vs altitude (bars = std of measurements)")
     save(fig, "aot_vs_altitude.png")
 
 
@@ -472,12 +472,12 @@ def fig_zurich(df, st, spec):
         a2.plot(lf, v["beta"] * (lf / 1000) ** (-v["alpha"]), color=s["color"], lw=2)
     a1.plot([], [], "x", color="gray", ms=10, mew=2, label="rejected (QC)")
     a1.set_xlabel("Time (GMT, h)")
-    a1.set_ylabel("AOT 540 nm")
+    a1.set_ylabel("AOD 540 nm")
     a1.set_ylim(bottom=0)
-    a1.set_title("AOT 540 nm vs time")
+    a1.set_title("AOD 540 nm vs time")
     a1.legend(frameon=False)
     a2.set_xlabel("Wavelength (nm)")
-    a2.set_ylabel("AOT")
+    a2.set_ylabel("AOD")
     a2.set_ylim(bottom=0)
     a2.set_title("Mean spectrum + Ångström fit")
     a2.legend(frameon=False, fontsize=11)
@@ -507,9 +507,9 @@ def fig_elevation(df, st):
     keys = list(df["day_key"].cat.categories)
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(15, 6))
     scatter_days(a1, df, st, "aot_540")
-    a1.set_ylabel("AOT 540 nm")
+    a1.set_ylabel("AOD 540 nm")
     a1.set_ylim(bottom=0)
-    a1.set_title("AOT 540 nm vs solar elevation")
+    a1.set_title("AOD 540 nm vs solar elevation")
     scatter_days(a2, df, st, "angstrom")
     a2.set_ylabel("Ångström exponent α")
     a2.set_title("Ångström vs solar elevation")
@@ -550,7 +550,7 @@ def fig_session_var(df, st, summary):
                       f"{r['end_utc'][:5]}\nn={r['n_qc_ok']}  CV={cv:.0f}%")
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=11)
-    ax.set_ylabel("AOT (mean ± std)")
+    ax.set_ylabel("AOD (mean ± std)")
     ax.set_ylim(bottom=0)
     ax.set_title("Repeatability per session (CV = std/mean at 540 nm; times GMT)")
     ax.legend(frameon=False, ncol=3, loc="upper right")
@@ -605,14 +605,14 @@ def print_report(df, summary, spec, st):
     print(f"Rejected (R² < {QC_MIN_R2} or session outlier):")
     for _, r in df[~df["qc_ok"]].iterrows():
         why = "R²" if r["qc_low_r2"] else "outlier"
-        print(f"   [{why}] {r['day_label']} {r['time']}  AOT={r['aot_465']:.3f}/{r['aot_540']:.3f}/"
+        print(f"   [{why}] {r['day_label']} {r['time']}  AOD={r['aot_465']:.3f}/{r['aot_540']:.3f}/"
               f"{r['aot_619']:.3f}  α={r['angstrom']:.2f}  R²={r['fit_r2']:.2f}")
 
-    print("\n================ AOT AND ÅNGSTRÖM PER SITE/DAY (QC ok) ================")
+    print("\n================ AOD AND ÅNGSTRÖM PER SITE/DAY (QC ok) ================")
     for k, g in ok.groupby("day_key", observed=True):
         v = spec[k]
-        print(f"  {st[k]['label']:22s} n={len(g):2d}  AOT500={g['aot_500'].mean():.3f}±"
-              f"{g['aot_500'].std():.3f}  AOT540={g['aot_540'].mean():.3f}±{g['aot_540'].std():.3f}"
+        print(f"  {st[k]['label']:22s} n={len(g):2d}  AOD500={g['aot_500'].mean():.3f}±"
+              f"{g['aot_500'].std():.3f}  AOD540={g['aot_540'].mean():.3f}±{g['aot_540'].std():.3f}"
               f"  α col15={g['angstrom'].mean():.2f}±{g['angstrom'].std():.2f}"
               f"  α fit of mean spectrum={v['alpha']:.2f} (β={v['beta']:.3f})")
     print("\n================ SESSIONS ================")

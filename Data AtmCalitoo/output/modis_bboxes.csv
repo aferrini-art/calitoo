@@ -1,0 +1,4 @@
+site,file,variable,start,end,data_west,data_south,data_east,data_north,user_west,user_south,user_east,user_north,cov_west,cov_east,cov_south,cov_north,fill_value
+Zurich,Zurich6.10.csv,mean_MYD08_D3_6_1_AOD_550_Dark_Target_Deep_Blue_Combined_Mean,2026-10-06T00:00:00Z,2026-10-20T23:59:59Z,6.5,47.5,9.5,48.5,6.0,47.0,10.0,49.0,6.0,10.0,47.0,49.0,-9999.0
+Davos,Davos.csv,mean_MYD08_D3_6_1_AOD_550_Dark_Target_Deep_Blue_Combined_Mean,2026-10-07T00:00:00Z,2026-10-20T23:59:59Z,8.5,46.5,11.5,47.5,8.0,46.0,12.0,48.0,8.0,12.0,46.0,48.0,-9999.0
+Lugano,Lugano10.10.csv,mean_MYD08_D3_6_1_AOD_550_Dark_Target_Deep_Blue_Combined_Mean,2026-10-06T00:00:00Z,2026-10-10T23:59:59Z,7.5,45.5,10.5,46.5,7.0,45.0,11.0,47.0,7.0,11.0,45.0,47.0,-9999.0

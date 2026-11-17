@@ -1,14 +1,14 @@
-# macOS / Python
+# macOS
 .DS_Store
+
+# Python caches
 __pycache__/
 *.pyc
 
-# Raw data (Calitoo exports, AERONET, GIOVANNI/MODIS)
-Data AtmCalitoo/calitoo_*.txt
-Data AtmCalitoo/aeronet_data/
-Data AtmCalitoo/giovanni_data/
-
-# Generated outputs (tables, plots, figures, captions/notes)
-Data AtmCalitoo/output/
-Data AtmCalitoo/figures_presentation/
-Data AtmCalitoo/figures_simple/
+# Credentials and secrets (never commit)
+.env
+.env.*
+*.pem
+*.key
+*credentials*
+*secret*

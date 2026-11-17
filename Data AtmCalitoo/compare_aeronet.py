@@ -29,7 +29,7 @@ CALITOO_SITE = "Davos"
 DAY = pd.Timestamp("2026-10-07").date()
 MATCH_WINDOWS_MIN = [15, 30]   # ± minutes; the first one is the main result
 AQUA_WINDOW_UTC = ("11:30", "13:00")
-CALITOO_UNC = 0.03             # typical Calitoo AOT uncertainty
+CALITOO_UNC = 0.03             # typical Calitoo AOD uncertainty
 LEVEL_NAMES = {"lev10": "Level 1.0", "lev15": "Level 1.5", "lev20": "Level 2.0"}
 CAL_WL = pc.WL                 # 465, 540, 619 nm
 # AERONET channel pairs used for log-log interpolation to each target wavelength
@@ -225,7 +225,7 @@ def fig_scatter(m, meta):
     ax.set_ylim(lo, hi)
     ax.set_aspect("equal")
     ax.set_xlabel(f"AERONET AOD (interpolated, mean ±{MATCH_WINDOWS_MIN[0]} min)")
-    ax.set_ylabel("Calitoo AOT")
+    ax.set_ylabel("Calitoo AOD")
     ax.set_title(f"Calitoo vs AERONET {meta['level']} – Davos, 7 Oct 2026")
     ax.legend(handles=h, loc="upper left", frameon=False, fontsize=10.5)
     ax.text(0.98, 0.02, "bias = Calitoo − AERONET\nx error bar = std AERONET in window",

@@ -97,9 +97,12 @@ def finish(fig, name, title, caption, rect_bottom=0.1, layout=True, wrap=120):
 def load():
     cal = pd.read_csv(OUT / "calitoo_all.csv", parse_dates=["datetime_utc"])
     cal["date"] = cal["datetime_utc"].dt.strftime("%Y-%m-%d")
+    # Sep–Oct campaign only: the configured site-days (DAY_MARKERS); later days are not in this deck
+    cal = cal[cal["site"].isin(SITE_COLORS) & cal["date"].isin(DAY_MARKERS)].reset_index(drop=True)
     cal["key"] = cal["site"] + " " + cal["date"]
     order = cal.groupby("key")["datetime_utc"].min().sort_values().index.tolist()
     summ = pd.read_csv(OUT / "summary.csv")
+    summ = summ[summ["site"].isin(SITE_COLORS) & summ["date"].isin(DAY_MARKERS)].reset_index(drop=True)
     am = pd.read_csv(OUT / "calitoo_vs_aeronet.csv")
     aer = pd.read_csv(OUT / "aeronet_davos_screened.csv", parse_dates=["datetime_utc"])
     cvm = pd.read_csv(OUT / "calitoo_vs_modis.csv")
@@ -216,7 +219,7 @@ def fig02_quality(D, S):
     a1.set_yticks(y)
     a1.set_yticklabels([f"{day_label(r.site, r.date)} {r.start_utc[:5]}" for r in sm.itertuples()],
                        fontsize=12)
-    a1.set_xlabel(L("CV of AOT 540 nm per session (%)", "CV dell'AOT 540 nm per sessione (%)"))
+    a1.set_xlabel(L("CV of AOD 540 nm per session (%)", "CV dell'AOD 540 nm per sessione (%)"))
     a1.set_xlim(0, max(10, sm["cv"].max() * 1.3))
     a1.grid(axis="y", visible=False)
     a1.set_title(L("(a) repeatability", "(a) ripetibilità"), fontsize=15)
@@ -245,10 +248,10 @@ def fig02_quality(D, S):
              "(nuvola sottile o puntamento). Orari UTC."), rect_bottom=0.07)
     CAPS["02_data_quality"] = dict(
         title=title, msg="Le misure sono ripetibili; le 6 scartate sono riconoscibili dal segnale grezzo.",
-        bullets=[f"CV dell'AOT 540 nm per sessione: {sm['cv'].min():.0f}–{sm['cv'].max():.0f} % "
+        bullets=[f"CV dell'AOD 540 nm per sessione: {sm['cv'].min():.0f}–{sm['cv'].max():.0f} % "
                  "(std/media, solo misure valide).",
                  f"Scartate {len(r2)} misure con fit di Ångström R² < 0.8 (colonna 16 del file) e "
-                 f"{len(out)} outlier (Zurigo 30/9 13:19, Davos 7/10 08:09): segnale −7 %/−22 %, AOT molto più alta.",
+                 f"{len(out)} outlier (Zurigo 30/9 13:19, Davos 7/10 08:09): segnale −7 %/−22 %, AOD molto più alta.",
                  "Il segnale grezzo cresce con l'elevazione solare come atteso; nessuna deriva evidente."],
         caveat="Ripetibilità ≠ accuratezza: un errore di calibrazione non si vede qui (→ slide AERONET).")
 
@@ -278,7 +281,7 @@ def fig03_overview(D, S):
                 color=SITE_COLORS[site])
     ax.set_xticks(range(len(keys)))
     ax.set_xticklabels([day_label(k.split()[0], k.split()[1]).replace(" ", "\n", 1) for k in keys])
-    ax.set_ylabel("AOT 540 nm")
+    ax.set_ylabel("AOD 540 nm")
     ax.set_ylim(0, 0.18)
     ax.set_yticks(np.arange(0, 0.161, 0.04))
     ax.set_xlim(-0.6, len(keys) - 0.4)
@@ -287,19 +290,19 @@ def fig03_overview(D, S):
          Line2D([], [], marker="x", color=REJ_COLOR, ls="", ms=9, mew=2, label=L("rejected (QC)", "scartate (QC)"))]
     ax.legend(handles=h, loc="upper left", bbox_to_anchor=(1.0, 1.0), fontsize=12)
     spread = max(meds) - min(meds)
-    title = L("AOT is low everywhere: 0.03–0.08 at 540 nm", "AOT bassa ovunque: 0.03–0.08 a 540 nm")
+    title = L("AOD is low everywhere: 0.03–0.08 at 540 nm", "AOD bassa ovunque: 0.03–0.08 a 540 nm")
     finish(fig, "03_aot_overview", title,
-           L(f"Numbers on top = mean AOT 540 nm. Most site/day differences are within ±0.03; the largest "
+           L(f"Numbers on top = mean AOD 540 nm. Most site/day differences are within ±0.03; the largest "
              f"(Zurich 30 Sep vs Lugano, {spread:.3f}) slightly exceeds it. A calibration error would shift "
              "all sites alike, so relative differences are more robust than absolute values.",
-             f"Numeri = AOT media 540 nm. Quasi tutte le differenze sono entro ±0.03; la maggiore "
+             f"Numeri = AOD media 540 nm. Quasi tutte le differenze sono entro ±0.03; la maggiore "
              f"(Zurigo 30/9 vs Lugano, {spread:.3f}) lo supera di poco. Un errore di calibrazione sposta "
              "tutti i siti allo stesso modo: le differenze relative sono più robuste dei valori assoluti."),
            rect_bottom=0.13)
     st = S["days"]
     CAPS["03_aot_overview"] = dict(
         title=title, msg="Aria molto pulita in tutti i siti; differenze tra siti piccole rispetto all'incertezza.",
-        bullets=["AOT 540 nm medio: " + ", ".join(f"{day_label(r.site, r.date)} {r.aot540:.3f}"
+        bullets=["AOD 540 nm medio: " + ", ".join(f"{day_label(r.site, r.date)} {r.aot540:.3f}"
                                                   for r in st.itertuples()) + ".",
                  f"Differenza massima {spread:.3f} (Zurigo 30/9 vs Lugano): è l'unica che supera ±0.03; "
                  "le altre sono coerenti entro l'incertezza.",
@@ -324,7 +327,7 @@ def fig04_timeseries(D, S):
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M", tz="UTC"))
         ax.tick_params(axis="x", labelsize=11, rotation=35)
         ax.set_title(day_label(g["site"].iat[0], g["date"].iat[0]), fontsize=14, color=SITE_COLORS[g["site"].iat[0]])
-    axes[0].set_ylabel("AOT")
+    axes[0].set_ylabel("AOD")
     axes[0].set_ylim(0, 0.14)
     fig.subplots_adjust(left=0.08, right=0.985, top=0.83, bottom=0.31, wspace=0.12)
     fig.supxlabel(L("Time (UTC)", "Ora (UTC)"), fontsize=15, y=0.13)
@@ -340,8 +343,8 @@ def fig04_timeseries(D, S):
              "Stessa scala y per tutti i giorni; le linee uniscono misure della stessa sessione. Ora locale = UTC + 2 h."),
            layout=False)
     CAPS["04_aot_timeseries"] = dict(
-        title=title, msg="Dentro ogni sessione l'AOT è stabile; l'unica variazione forte è a Zurigo il 6/10.",
-        bullets=[f"Zurigo 6/10: AOT 540 nm da {zs['aot_540_mean'].iat[0]:.3f} (10:57 UTC) a "
+        title=title, msg="Dentro ogni sessione l'AOD è stabile; l'unica variazione forte è a Zurigo il 6/10.",
+        bullets=[f"Zurigo 6/10: AOD 540 nm da {zs['aot_540_mean'].iat[0]:.3f} (10:57 UTC) a "
                  f"{zs['aot_540_mean'].iat[1]:.3f} (13:28 UTC), {rise:+.0f} %, α simile → più aerosol fine nel pomeriggio.",
                  "Davos e Lugano: nessuna tendenza durante la sessione (variazioni entro il rumore).",
                  "Le crocette sono le misure scartate (nuvola/puntamento): ben separate dal resto."],
@@ -375,8 +378,8 @@ def fig05_spectrum(D, S):
     ax.set_yticklabels([f"{v:g}" for v in yt])
     ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
     ax.tick_params(labelbottom=False)
-    ax.set_ylabel("AOT")
-    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), title="fit AOT = β·λ$^{-α}$")
+    ax.set_ylabel("AOD")
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), title="fit AOD = β·λ$^{-α}$")
     ar.axhline(0, color="black", lw=1)
     ar.axvspan(525, 555, color="#2e9a3a", alpha=0.12, lw=0)
     ar.set_ylabel(L("residual (%)", "residuo (%)"))
@@ -389,9 +392,9 @@ def fig05_spectrum(D, S):
              L(f"540 nm falls below the fit on {n_neg}/{len(st)} days", f"540 nm sotto il fit in {n_neg}/{len(st)} giorni"))
     fig.subplots_adjust(left=0.1, right=0.72, top=0.86, bottom=0.2)
     finish(fig, "05_spectrum_540_anomaly", title,
-           L("Daily mean of QC-passed measurements; residual = AOT / fit − 1 (with 3 bands, a low 540 nm pushes "
+           L("Daily mean of QC-passed measurements; residual = AOD / fit − 1 (with 3 bands, a low 540 nm pushes "
              "465/619 above the fit). The same bend on every day and site points to the instrument, not the aerosol.",
-             "Media giornaliera delle misure valide; residuo = AOT / fit − 1 (con 3 bande, 540 basso spinge 465/619 "
+             "Media giornaliera delle misure valide; residuo = AOD / fit − 1 (con 3 bande, 540 basso spinge 465/619 "
              "sopra il fit). La stessa piega in ogni giorno e sito indica lo strumento, non l'aerosol."), layout=False)
     CAPS["05_spectrum_540_anomaly"] = dict(
         title=title, msg="Il canale 540 nm è sistematicamente basso rispetto agli altri due: primo indizio strumentale.",
@@ -418,7 +421,7 @@ def fig06_aeronet_ts(D, S):
     bb = bad[(bad["datetime_utc"] >= t0) & (bad["datetime_utc"] <= t1) & (bad["aod_465"] < 0.12)]
     ax.plot(bb["datetime_utc"], bb["aod_540"], "x", color=REJ_COLOR, ms=7, mew=1.8)
     ax.set_ylim(0.03, 0.12)
-    ax.set_ylabel("AOD / AOT")
+    ax.set_ylabel("AOD")
     ax.tick_params(labelbottom=False)
     h = [Line2D([], [], color=BAND_COLORS[w], lw=2.2, label=f"AERONET {w} nm") for w in WL]
     h += [Line2D([], [], color="gray", marker="D", mec="black", ls="", ms=7, label="Calitoo (3 bands)" if LANG == "en" else "Calitoo (3 bande)"),
@@ -478,7 +481,7 @@ def fig07_aeronet_scatter(D, S):
     ax.set_xticks([0.02, 0.04, 0.06, 0.08, 0.10])
     ax.set_yticks([0.02, 0.04, 0.06, 0.08, 0.10])
     ax.set_xlabel(L("AERONET AOD (±15 min mean)", "AOD AERONET (media ±15 min)"))
-    ax.set_ylabel("Calitoo AOT")
+    ax.set_ylabel("Calitoo AOD")
     ax.text(0.03, 0.97, L("grey: ±0.03", "grigio: ±0.03"), transform=ax.transAxes, va="top", fontsize=12, color=CAPTION_COLOR)
     tax = fig.add_axes([0.55, 0.35, 0.43, 0.4])
     tax.axis("off")
@@ -584,7 +587,7 @@ def fig08b_corrected(D, S):
     a2.bar(xi - 0.18, g["al"], 0.34, color="#bbbbbb")
     a2.bar(xi + 0.18, g["alc"], 0.34, color="#555555", label=L("CN0-corrected", "corretto CN0"))
     a2.axhline(D["am"]["aer_alpha_465_619"].mean(), color=AER_COLOR, ls="--", lw=1.5, label="AERONET Davos")
-    for a, yl in ((a1, "AOT 540 nm"), (a2, "Ångström α")):
+    for a, yl in ((a1, "AOD 540 nm"), (a2, "Ångström α")):
         a.set_xticks(xi)
         a.set_xticklabels(lab, fontsize=12)
         a.set_ylabel(yl)
@@ -593,12 +596,12 @@ def fig08b_corrected(D, S):
     title = L("PRELIMINARY: CN0 correction from one day at Davos", "PRELIMINARE: correzione CN0 da un solo giorno a Davos")
     finish(fig, "08b_corrected_vs_original", title,
            L(f"Scenario only: CN0 raised by {-100 * t[540]['a0']:.1f} % (540) and {-100 * t[619]['a0']:.1f} % (619), "
-             "AOT corrected as τ − a/m for each measurement. Not validated.",
+             "AOD corrected as τ − a/m for each measurement. Not validated.",
              f"Solo scenario: CN0 aumentata di {-100 * t[540]['a0']:.1f} % (540) e {-100 * t[619]['a0']:.1f} % (619), "
-             "AOT corretta come τ − a/m per ogni misura. Non validata."), rect_bottom=0.1)
+             "AOD corretta come τ − a/m per ogni misura. Non validata."), rect_bottom=0.1)
     CAPS["08b_corrected_vs_original"] = dict(
         title=title, msg="Scenario: cosa cambierebbe con la correzione CN0 (non validata).",
-        bullets=["AOT 540 nm e α prima/dopo per tutti i giorni."], caveat="Basata su un solo giorno a Davos; test 1/m non conclusivo.")
+        bullets=["AOD 540 nm e α prima/dopo per tutti i giorni."], caveat="Basata su un solo giorno a Davos; test 1/m non conclusivo.")
 
 
 def mini_map(ax, D):
@@ -719,7 +722,7 @@ def fig10_table(D, S):
     fig, ax = plt.subplots(figsize=WIDE)
     ax.axis("off")
     tb = ax.table(cellText=rows, colLabels=[L("Site", "Sito"), L("Date", "Data"), "n (QC/all)",
-                                            "AOT 540 nm", "α", "AERONET", "MODIS AOD 550"],
+                                            "AOD 540 nm", "α", "AERONET", "MODIS AOD 550"],
                   loc="center", cellLoc="center", colWidths=[0.11, 0.09, 0.12, 0.18, 0.07, 0.22, 0.19])
     tb.auto_set_font_size(False)
     tb.set_fontsize(13)
@@ -733,11 +736,11 @@ def fig10_table(D, S):
             cell.set_text_props(color=SITE_COLORS[rows[ri - 1][0]], fontweight="bold")
     title = L("Campaign summary", "Riepilogo della campagna")
     finish(fig, "10_summary_table", title,
-           L("AOT: mean ± std of QC-passed measurements; α = Calitoo column 15 (likely overestimated, see AERONET).",
-             "AOT: media ± std delle misure valide; α = colonna 15 Calitoo (probabilmente sovrastimato, vedi AERONET)."),
+           L("AOD: mean ± std of QC-passed measurements; α = Calitoo column 15 (likely overestimated, see AERONET).",
+             "AOD: media ± std delle misure valide; α = colonna 15 Calitoo (probabilmente sovrastimato, vedi AERONET)."),
            rect_bottom=0.06)
     CAPS["10_summary_table"] = dict(title=title, msg="Tabella riassuntiva per la slide finale.",
-                                    bullets=["Una riga per giorno: n, AOT 540 nm, α, confronti disponibili."],
+                                    bullets=["Una riga per giorno: n, AOD 540 nm, α, confronti disponibili."],
                                     caveat="α da leggere alla luce del bias spettrale.")
 
 
@@ -834,7 +837,7 @@ def report(S):
           f"se gli orari fossero locali (UTC+2) |Δ| medio sarebbe {u['if_local']:.1f}°")
     c = S["consistency"]
     print("\n================ COERENZA CON summary.csv ================")
-    print(f"  n QC per sessione uguale: {c['n_ok']}; max |Δ AOT540| = {c['max_aot']:.2e}; max |Δ α| = {c['max_alpha']:.2e}")
+    print(f"  n QC per sessione uguale: {c['n_ok']}; max |Δ AOD540| = {c['max_aot']:.2e}; max |Δ α| = {c['max_alpha']:.2e}")
     print("\n================ NUMERI CAMBIATI RISPETTO AL RIASSUNTO PRECEDENTE ================")
     prev = {"Zurich 2026-09-30": 1.66, "Zurich 2026-10-06": 1.73, "Davos 2026-10-07": 1.57, "Lugano 2026-10-10": 1.49}
     for k, r in S["days"].iterrows():

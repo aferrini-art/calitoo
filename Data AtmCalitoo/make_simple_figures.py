@@ -121,7 +121,7 @@ def fig1(cal):
         if k:
             ax.tick_params(axis="y", labelleft=False)
         axes.append(ax)
-    axes[0].set_ylabel("AOT")
+    axes[0].set_ylabel("AOD")
     axes[0].set_ylim(0, 0.12)
     (legend_ax or axes[-1]).legend(loc="upper right")
     fig.subplots_adjust(left=0.05, right=0.99, top=0.9, bottom=0.2)
@@ -136,9 +136,9 @@ def fig2(cal):
     ax.bar(range(len(DAYS)), means, yerr=stds, color=COLORS[540], width=0.6, capsize=6)
     ax.set_xticks(range(len(DAYS)))
     ax.set_xticklabels([lab.replace(" ", "\n", 1) for _, _, lab in DAYS])
-    ax.set_ylabel("Mean AOT at 540 nm")
+    ax.set_ylabel("Mean AOD at 540 nm")
     ax.set_ylim(0, 0.1)
-    ax.set_title("Mean AOT at 540 nm (± std)")
+    ax.set_title("Mean AOD at 540 nm (± std)")
     ax.grid(axis="x", visible=False)
     fig.tight_layout()
     save(fig, "2_aot_by_site.png", pdf=True)
@@ -257,7 +257,7 @@ def fig6(cal):
     return res, d["m"].min(), d["m"].max(), r_au
 
 
-LANGLEY_CLOUD_FACTOR = 2.0   # Langley screen: drop points with AOT 540 > 2 × median of the acquisition
+LANGLEY_CLOUD_FACTOR = 2.0   # Langley screen: drop points with AOD 540 > 2 × median of the acquisition
 
 
 def fig7(cal_all):
@@ -311,14 +311,14 @@ def main():
     b = fig5()
     lg, m0, m1, r_au = fig6(cal)
     lb, nb, use, cloud, r_au_nb = fig7(cal_all)
-    print("\nMean AOT 540 nm (QC ok):")
+    print("\nMean AOD 540 nm (QC ok):")
     for lab, (n, mu, sd) in bars.items():
         print(f"  {lab:14s} n={n:2d}  {mu:.4f} ± {sd:.4f}")
     print(f"\nLangley Near Bern 14/11: {len(nb)} measurements, {use.sum()} in the fit, "
           f"m = {nb.loc[use, 'm'].min():.2f}–{nb.loc[use, 'm'].max():.2f}, r = {r_au_nb:.4f} AU")
     for _, r in nb[~use].iterrows():
         print(f"  excluded {r['datetime_utc']:%H:%M:%S} UTC: qc_ok={r['qc_ok']}, cloud screen={cloud[_]}, "
-              f"raw={r['raw_465']:.0f}/{r['raw_540']:.0f}/{r['raw_619']:.0f}, AOT540={r['aot_540']:.3f}, "
+              f"raw={r['raw_465']:.0f}/{r['raw_540']:.0f}/{r['raw_619']:.0f}, AOD540={r['aot_540']:.3f}, "
               f"α={r['angstrom']:.2f}, R²={r['fit_r2']:.2f}")
     for w, r in lb.items():
         print(f"  {w} nm: ln V0 = {r['lnv0']:.3f} ± {r['lnv0_err']:.3f} → V0 = {r['v0']:.0f} "

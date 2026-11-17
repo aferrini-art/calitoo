@@ -1,0 +1,23 @@
+Title:,"Time Series, Area-Averaged of Combined Dark Target and Deep Blue AOD at 0.55 micron for land and (daily)"
+User Start Date:,2026-10-07T00:00:00Z
+User End Date:,2026-10-20T23:59:59Z
+User Bounding Box:,"8,46,12,48"
+Data Bounding Box:,"8.5,46.5,11.5,47.5"
+URL to Reproduce Results:,"https://giovanni.gsfc.nasa.gov/giovanni/#service=ArAvTs&starttime=2026-10-07T00:00:00Z&endtime=2026-10-20T23:59:59Z&bbox=8,46,12,48&data=MYD08_D3_6_1_AOD_550_Dark_Target_Deep_Blue_Combined_Mean&portal=GIOVANNI&format=json"
+Fill Value (mean_MYD08_D3_6_1_AOD_550_Dark_Target_Deep_Blue_Combined_Mean):, -9999
+
+time, mean_MYD08_D3_6_1_AOD_550_Dark_Target_Deep_Blue_Combined_Mean
+2026-10-07,-9999
+2026-10-08,-9999
+2026-10-09,0.0285000014
+2026-10-10,-9999
+2026-10-11,-9999
+2026-10-12,0.00570630391
+2026-10-13,-9999
+2026-10-14,0.030878342
+2026-10-15,0.0376666685
+2026-10-16,0.0150000007
+2026-10-17,-9999
+2026-10-18,-9999
+2026-10-19,-9999
+2026-10-20,-9999

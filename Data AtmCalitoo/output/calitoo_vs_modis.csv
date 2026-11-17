@@ -1,0 +1,5 @@
+site,date,n_all,aot550_all_mean,aot550_all_std,time_all,n_aqua_window,aot550_aqua_mean,aot550_aqua_std,time_aqua,calitoo_ref,modis_aod550,modis_flag,diff_modis_minus_calitoo,rel_diff_pct,within_modis_EE,site_lat,site_lon,inside_data_bbox,inside_cell_coverage,aer550_day_mean,aer550_day_std,aer_n_aqua,aer550_aqua_mean,aer550_aqua_std,diff_modis_minus_aeronet,diff_calitoo_minus_aeronet
+Zurich,2026-09-30,3,0.075947,0.0010625,13:18-13:21,3,0.075947,0.0010625,13:18-13:21,aqua_window,,date_not_in_modis_file,,,,47.377,8.5486,False,True,,,,,,,
+Zurich,2026-10-06,10,0.05371,0.0099051,10:56-13:29,10,0.05371,0.0099051,10:56-13:29,aqua_window,0.043252,ok,-0.010457,-19.47,True,47.377,8.5474,False,True,,,,,,,
+Davos,2026-10-07,26,0.051411,0.0044154,08:05-08:53,0,,,,all,,missing_fill_-9999,,,,46.813,9.8442,True,True,0.055919,0.0043823,0,,,,-0.0045071
+Lugano,2026-10-10,20,0.034266,0.0014998,13:37-14:17,8,0.033443,0.0017079,13:37-13:44,aqua_window,0.0365,ok,0.0030566,9.1397,True,46.02,8.9506,True,True,,,,,,,

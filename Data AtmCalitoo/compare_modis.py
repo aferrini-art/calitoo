@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare Calitoo AOT (converted to 550 nm) with MODIS-Aqua MYD08_D3 v6.1 AOD 550 nm.
+"""Compare Calitoo AOD (converted to 550 nm) with MODIS-Aqua MYD08_D3 v6.1 AOD 550 nm.
 
 Reuses output/calitoo_all.csv (run plot_calitoo.py first) and the GIOVANNI
 area-averaged time series in MODIS_DIR. Writes output/calitoo_vs_modis.csv,
@@ -109,7 +109,8 @@ def load_modis():
 
 def load_calitoo():
     df = pd.read_csv(OUT_DIR / "calitoo_all.csv", parse_dates=["datetime_utc"])
-    df = df[df["qc_ok"]].copy()
+    # only sites with MODIS files (e.g. Bern 14 Nov has none)
+    df = df[df["qc_ok"] & df["site"].isin(MODIS_FILES)].copy()
     df["date"] = df["datetime_utc"].dt.date
     # 540 -> 550 nm with the Ångström exponent of col. 15 (= 3-band least-squares fit)
     df["aot_550"] = df["aot_540"] * (550.0 / 540.0) ** (-df["angstrom"])
@@ -226,7 +227,7 @@ def fig_timeseries(site, modis, comp, aer=None, aer_level=""):
     ymin = min(0, np.nanmin(m["aod550"]) - 0.02) if m["negative"].any() else 0
     ax.set_ylim(ymin, None)
     ax.axhline(0, color="#999999", lw=1)
-    ax.set_ylabel("AOD / AOT at 550 nm")
+    ax.set_ylabel("AOD at 550 nm")
     f = m["file"].iat[0]
     ax.set_title(f"{site} – MODIS-Aqua MYD08_D3 (1° area mean) vs Calitoo"
                  + (f" and AERONET {aer_level}" if aer is not None else ""))
@@ -237,10 +238,10 @@ def fig_timeseries(site, modis, comp, aer=None, aer_level=""):
     if m["missing"].any():
         h.append(Patch(color="#e6e6e6", label="MODIS no data / cloud (fill −9999)"))
     h.append(Line2D([], [], marker=mk, color=col, ls="", ms=10,
-                    label="Calitoo AOT 550, all (mean ± std)"))
+                    label="Calitoo AOD 550, all (mean ± std)"))
     if c["n_aqua_window"].sum():
         h.append(Line2D([], [], marker=mk, mfc="white", mec=col, mew=2, ls="", ms=10,
-                        label=f"Calitoo AOT 550, Aqua window 12:15 ± {AQUA_HALF_WIN_H} h UTC"))
+                        label=f"Calitoo AOD 550, Aqua window 12:15 ± {AQUA_HALF_WIN_H} h UTC"))
     else:
         h.append(Line2D([], [], ls="", label="(no Calitoo measurement in the Aqua window)"))
     if aer is not None:
@@ -339,7 +340,7 @@ def fig_bars(comp, aer_level=""):
                     f"{r['aer550_day_mean']:.3f}", ha="center", va="bottom", fontsize=10)
     ax.set_xticks(x)
     ax.set_xticklabels([f"{r.site}\n{fmt_date(r.date)}" for r in comp.itertuples()])
-    ax.set_ylabel("AOT / AOD at 550 nm")
+    ax.set_ylabel("AOD at 550 nm")
     ax.set_ylim(0, ymax)
     ax.set_title("Calitoo vs MODIS-Aqua" + (" vs AERONET" if has_aer else "") + " per site/date")
     h = [Patch(color="#999999", label="Calitoo, all measurements (± std)"),
