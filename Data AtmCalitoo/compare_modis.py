@@ -30,13 +30,20 @@ MODIS_FILES = {
     "Zurich": ["Zurich6.10.csv"],
     "Davos": ["Davos.csv"],
     "Lugano": ["Lugano10.10.csv"],
+    # 14 Nov: both acquisitions lie in the same box (6–9 E, 46–48 N, centred on Bern)
+    "Near Bern": ["Bern14.11.csv"],
+    "Bern": ["Bern14.11.csv"],
 }
 AQUA_CENTER_UTC = 12.25    # 12:15 UTC, typical Aqua overpass over Switzerland
 AQUA_HALF_WIN_H = 1.5      # ±1.5 h window
 GRID_RES_DEG = 1.0         # MYD08_D3 grid; GIOVANNI "Data Bounding Box" = cell centres
-SITE_ORDER = ["Zurich", "Davos", "Lugano"]
-SITE_COLORS = {"Zurich": "#7c5cd6", "Davos": "#14a3a3", "Lugano": "#c98500"}
-SITE_MARKERS = {"Zurich": "s", "Davos": "^", "Lugano": "D"}
+SITE_ORDER = ["Zurich", "Davos", "Lugano", "Near Bern", "Bern"]
+SITE_COLORS = {"Zurich": "#7c5cd6", "Davos": "#14a3a3", "Lugano": "#c98500",
+               "Near Bern": "#eb6834", "Bern": "#e05a9a"}
+SITE_MARKERS = {"Zurich": "s", "Davos": "^", "Lugano": "D", "Near Bern": "v", "Bern": "P"}
+# extra cloud screen for 14 Nov (same as compare_aeronet.py / figure 7): AOD 540 > 2 × median of
+# the site/day acquisition (the 09:53 UTC Near Bern cloud point escapes the pipeline QC)
+CLOUD_SCREEN_SITES, CLOUD_FACTOR = ["Near Bern", "Bern"], 2.0
 MODIS_COLOR = "#444444"
 EE = lambda aod: 0.05 + 0.15 * aod   # MODIS DT expected error over land
 AER_COLOR = "#222222"
@@ -112,6 +119,11 @@ def load_calitoo():
     # only sites with MODIS files (e.g. Bern 14 Nov has none)
     df = df[df["qc_ok"] & df["site"].isin(MODIS_FILES)].copy()
     df["date"] = df["datetime_utc"].dt.date
+    med = df.groupby(["site", "date"])["aot_540"].transform("median")
+    cloud = df["site"].isin(CLOUD_SCREEN_SITES) & (df["aot_540"] > CLOUD_FACTOR * med)
+    for r in df[cloud].itertuples():
+        print(f"  {r.site} {r.date} {r.datetime_utc:%H:%M:%S} UTC excluded (cloud screen, AOD540={r.aot_540:.3f})")
+    df = df[~cloud].copy()
     # 540 -> 550 nm with the Ångström exponent of col. 15 (= 3-band least-squares fit)
     df["aot_550"] = df["aot_540"] * (550.0 / 540.0) ** (-df["angstrom"])
     hours = df["datetime_utc"].dt.hour + df["datetime_utc"].dt.minute / 60 \

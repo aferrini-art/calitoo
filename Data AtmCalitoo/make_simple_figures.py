@@ -12,6 +12,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.lines import Line2D
 
 BASE = Path(__file__).resolve().parent
 OUT = BASE / "output"
@@ -165,25 +166,191 @@ def fig3(cal, aer):
     save(fig, "3_calitoo_vs_aeronet_davos.png")
 
 
+NOV14_SITES = [("Near Bern", "o", "until 14:00 CET"), ("Bern", "s", "from 14:00 CET")]
+NOV14_SPLIT_UTC = "2026-11-14 13:00"    # 14:00 local (CET = UTC+1)
+
+
+def _fig_nov14_vs_aeronet(cal, station, tag, ymax, title, aer_note, show_matches, fname):
+    """14 Nov: Calitoo near Bern / in Bern vs one AERONET station (tables from compare_aeronet.py).
+    Same layout as fig3. Filled = AERONET within ±15 min, open = no AERONET match (no value assigned).
+    Cloud screen as fig7 (single-point sessions escape the pipeline QC)."""
+    p, pm = OUT / f"aeronet_{tag}.csv", OUT / f"calitoo_nov14_vs_aeronet_{station.lower()}.csv"
+    if not (p.exists() and pm.exists()):
+        print(f"  ({station} 14 Nov tables missing: run compare_aeronet.py; {fname} skipped)")
+        return
+    aer = pd.read_csv(p, parse_dates=["datetime_utc"])
+    a = aer[aer["screened_ok"]]
+    st = aer.iloc[0]
+    pairs = pd.read_csv(pm)
+    pairs = pairs[pairs["window_min"] == 15]
+    fig, ax = plt.subplots(figsize=(10, 5.6))
+    for w in WL:
+        ax.plot(a["datetime_utc"], a[f"aod_{w}"], "-", color=COLORS[w], lw=2.2,
+                label=f"AERONET {station} {w} nm")
+    loc_lines = [f"AERONET: {station} {st['station_lat']:.2f}N {st['station_lon']:.2f}E, "
+                 f"{st['station_elev_m']:.0f} m" + aer_note.format(t0=a["datetime_utc"].min(), t1=a["datetime_utc"].max())]
+    any_unmatched = False
+    for site, mk, when in NOV14_SITES:
+        d = cal[(cal["site"] == site) & (cal["date"] == "2026-11-14")]
+        cloud = d["aot_540"] > LANGLEY_CLOUD_FACTOR * d["aot_540"].median()
+        ok, bad = d[~cloud], d[cloud]
+        ps = pairs[pairs["calitoo_site"] == site]
+        matched = ok["datetime_utc"].dt.strftime("%H:%M:%S").isin(ps.loc[ps["n_aeronet"] > 0, "time_utc"])
+        any_unmatched |= bool((~matched).any())
+        for w in WL:
+            ax.plot(ok.loc[matched, "datetime_utc"], ok.loc[matched, f"aot_{w}"], mk, color=COLORS[w],
+                    ms=6, mec="black", mew=0.6, label=f"Calitoo {site} {w} nm")
+            ax.plot(ok.loc[~matched, "datetime_utc"], ok.loc[~matched, f"aot_{w}"], mk, mfc="white",
+                    mec=COLORS[w], mew=1.5, ms=6)
+        for _, r in bad.iterrows():
+            ax.plot(r["datetime_utc"], ymax * 0.97, "x", color="#555555", ms=9, mew=2, clip_on=False)
+            ax.annotate(f"{site} {r['datetime_utc']:%H:%M} UTC: cloud\n(AOD 540 = {r['aot_540']:.2f}, "
+                        "off scale), excluded", (r["datetime_utc"], ymax * 0.97), xytext=(8, 0),
+                        textcoords="offset points", ha="left", va="top", fontsize=10, color="#555555")
+        loc_lines.append(f"Calitoo {site} ({when}): {ok['lat'].mean():.2f}N {ok['lon'].mean():.2f}E, "
+                         f"{ok['alt_m'].median():.0f} m – {ps['distance_km'].iat[0]:.0f} km from "
+                         + (f"{station}; {matched.sum()}/{len(ok)} with AERONET within ±15 min"
+                            if show_matches else "AERONET"))
+    split = pd.Timestamp(NOV14_SPLIT_UTC, tz="UTC")
+    ax.axvline(split, color="#555555", ls="--", lw=1.2)
+    for txt, ha, dx in (("Near Bern", "right", -6), ("Bern", "left", 6)):
+        ax.annotate(txt, (split, ymax * 0.82), xytext=(dx, 0), textcoords="offset points",
+                    ha=ha, va="top", fontsize=11, color="#555555")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M", tz="UTC"))
+    ax.set_xlabel("Time (UTC)")
+    ax.set_ylabel("AOD")
+    ax.set_ylim(0, ymax)
+    d = cal[(cal["date"] == "2026-11-14") & cal["site"].isin([s for s, _, _ in NOV14_SITES])]
+    ax.set_xlim(d["datetime_utc"].min() - pd.Timedelta(minutes=30),
+                d["datetime_utc"].max() + pd.Timedelta(minutes=20))
+    ax.set_title(title, fontsize=15)
+    h, _ = ax.get_legend_handles_labels()       # 3 AERONET, 3 Near Bern, 3 Bern (column-wise)
+    if any_unmatched:
+        blank = Line2D([], [], ls="", label=" ")
+        unmatched = Line2D([], [], marker="o", mfc="white", mec="gray", mew=1.5, ls="", ms=6,
+                           label="Calitoo, no AERONET within ±15 min")
+        h = h[0:3] + [blank] + h[3:6] + [unmatched] + h[6:9] + [blank]
+    ax.legend(handles=h, ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.18), fontsize=11)
+    fig.text(0.01, -0.02, "\n".join(loc_lines), fontsize=10.5, color="#444444", va="top")
+    fig.tight_layout()
+    save(fig, fname)
+
+
+def fig3b(cal):
+    """14 Nov vs AERONET Davos (Level 1.0, own screening): different locations, ~185 km apart."""
+    _fig_nov14_vs_aeronet(
+        cal, "Davos", "davos_nov14_screened", ymax=0.14,
+        title="14 Nov: Calitoo (Near Bern / Bern) vs AERONET Davos\n"
+              "different locations, ~185 km apart – not a same-site validation",
+        aer_note="", show_matches=False, fname="3b_calitoo_bern_vs_aeronet_davos_nov14.png")
+
+
+def fig3c(cal):
+    """14 Nov vs AERONET Payerne (Level 1.5): regional comparison, 37–42 km apart."""
+    _fig_nov14_vs_aeronet(
+        cal, "Payerne", "payerne_nov14", ymax=0.16,
+        title="14 Nov: regional comparison – Calitoo (Near Bern / Bern) vs AERONET Payerne\n"
+              "stations 37–42 km apart – not a same-site validation",
+        aer_note=", Level 1.5 (cloud-screened by AERONET), "
+                 "{t0:%H:%M}–{t1:%H:%M} UTC",
+        show_matches=True, fname="3c_calitoo_bern_vs_aeronet_payerne_nov14.png")
+
+
+def _fig_nov14_restyled(cal, station, tag, fname):
+    """Restyled 3b/3c: same look as fig3 (Davos 7 Oct). Data, cloud screen and ±15 min matching as in
+    _fig_nov14_vs_aeronet; circles = Near Bern, squares = Bern; open = no AERONET within ±15 min.
+    Method and distances are documented in notes.md, not in the figure."""
+    p, pm = OUT / f"aeronet_{tag}.csv", OUT / f"calitoo_nov14_vs_aeronet_{station.lower()}.csv"
+    if not (p.exists() and pm.exists()):
+        print(f"  ({station} 14 Nov tables missing: run compare_aeronet.py; {fname} skipped)")
+        return
+    a = pd.read_csv(p, parse_dates=["datetime_utc"])
+    a = a[a["screened_ok"]]
+    pairs = pd.read_csv(pm)
+    pairs = pairs[pairs["window_min"] == 15]
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for w in WL:
+        ax.plot(a["datetime_utc"], a[f"aod_{w}"], "-", color=COLORS[w], lw=2.2)
+    shown, bad_all, any_unmatched = [], [], False
+    for site, mk, _ in NOV14_SITES:
+        d = cal[(cal["site"] == site) & (cal["date"] == "2026-11-14")]
+        cloud = d["aot_540"] > LANGLEY_CLOUD_FACTOR * d["aot_540"].median()
+        ok = d[~cloud]
+        bad_all.append(d[cloud])
+        ps = pairs[pairs["calitoo_site"] == site]
+        matched = ok["datetime_utc"].dt.strftime("%H:%M:%S").isin(ps.loc[ps["n_aeronet"] > 0, "time_utc"])
+        any_unmatched |= bool((~matched).any())
+        for w in WL:
+            ax.plot(ok.loc[matched, "datetime_utc"], ok.loc[matched, f"aot_{w}"], mk, color=COLORS[w],
+                    ms=6, mec="black", mew=0.6)
+            ax.plot(ok.loc[~matched, "datetime_utc"], ok.loc[~matched, f"aot_{w}"], mk, mfc="white",
+                    mec=COLORS[w], mew=1.2, ms=6)
+        shown.append(ok)
+    shown = pd.concat(shown)
+    # axis ranges from the plotted data (AERONET during the Calitoo period + valid Calitoo points)
+    t0 = shown["datetime_utc"].min() - pd.Timedelta(minutes=15)
+    t1 = shown["datetime_utc"].max() + pd.Timedelta(minutes=10)
+    aw = a[(a["datetime_utc"] >= t0) & (a["datetime_utc"] <= t1)]
+    vals = np.concatenate([aw[[f"aod_{w}" for w in WL]].values.ravel(),
+                           shown[[f"aot_{w}" for w in WL]].values.ravel()])
+    lo = max(0.0, np.floor((np.nanmin(vals) - 0.005) * 100) / 100)
+    has_cloud = any(len(b) for b in bad_all)
+    hi = np.ceil((np.nanmax(vals) + (0.012 if has_cloud else 0.005)) * 100) / 100
+    for b in bad_all:                       # excluded cloud point: off scale, marked near the top
+        for _, r in b.iterrows():
+            y = hi - 0.004
+            ax.plot(r["datetime_utc"], y, "x", color="#555555", ms=8, mew=1.8)
+            ax.annotate(f"cloud, excluded (AOD 540 = {r['aot_540']:.2f})", (r["datetime_utc"], y),
+                        xytext=(7, 0), textcoords="offset points", ha="left", va="center",
+                        fontsize=10, color="#555555")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M", tz="UTC"))
+    ax.set_xlabel("Time (UTC)")
+    ax.set_ylabel("AOD")
+    ax.set_ylim(lo, hi)
+    ax.set_xlim(t0, t1)
+    ax.set_title(f"Near Bern / Bern, 14 Nov: Calitoo vs AERONET {station}")
+    h = [Line2D([], [], color=COLORS[w], lw=2.2, label=f"AERONET {station} {w} nm") for w in WL]
+    h += [Line2D([], [], color=COLORS[w], marker="o", ls="", ms=6, mec="black", mew=0.6,
+                 label=f"Calitoo {w} nm") for w in WL]
+    h += [Line2D([], [], color="#888888", marker="o", ls="", ms=6, mec="black", mew=0.6,
+                 label="Calitoo Near Bern"),
+          Line2D([], [], color="#888888", marker="s", ls="", ms=6, mec="black", mew=0.6,
+                 label="Calitoo Bern")]
+    if any_unmatched:
+        h.append(Line2D([], [], marker="o", ls="", ms=6, mfc="white", mec="#888888", mew=1.2,
+                        label="no AERONET within ±15 min"))
+    ax.legend(handles=h, ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.18))
+    fig.tight_layout()
+    save(fig, fname)
+
+
 def fig4(modis):
     m = modis.set_index(["site", "date"])
-    groups = [("Zurich", "2026-10-06", "Zurich\n6 Oct"), ("Davos", "2026-10-07", "Davos\n7 Oct"),
-              ("Lugano", "2026-10-10", "Lugano\n10 Oct")]
-    fig, ax = plt.subplots(figsize=(8, 5))
+    # (site, date, tick label, text when MODIS has no value)
+    # "Bern area — 14 Nov" = only the measurements in the assumed Aqua window (10:45–13:45 UTC); they
+    # are all from the Near Bern spot. The afternoon measurements in Bern (13:47–14:49 UTC) are
+    # outside the window and are NOT pooled in (see notes.md).
+    groups = [("Zurich", "2026-10-06", "Zurich\n6 Oct", ""),
+              ("Davos", "2026-10-07", "Davos\n7 Oct", "MODIS:\nno data\n(clouds)"),
+              ("Lugano", "2026-10-10", "Lugano\n10 Oct", ""),
+              ("Near Bern", "2026-11-14", "Bern area — 14 Nov", "MODIS:\nno data")]
+    AQUA_ONLY = {("Near Bern", "2026-11-14")}   # never fall back to the day mean for these
+    fig, ax = plt.subplots(figsize=(11, 5))
     w = 0.36
-    for i, (s, d, _) in enumerate(groups):
+    for i, (s, d, _, nodata) in enumerate(groups):
         r = m.loc[(s, d)]
+        if (s, d) in AQUA_ONLY and not r["n_aqua_window"] > 0:
+            raise ValueError(f"{s} {d}: no Calitoo measurement in the Aqua window")
         cal = r["aot550_aqua_mean"] if r["n_aqua_window"] > 0 else r["aot550_all_mean"]
         ax.bar(i - w / 2, cal, w, color=COLORS[540], label="Calitoo" if i == 0 else None)
         if np.isfinite(r["modis_aod550"]):
             ax.bar(i + w / 2, r["modis_aod550"], w, color=MODIS_COLOR, label="MODIS-Aqua" if i == 0 else None)
         else:
-            ax.text(i + w / 2, 0.004, "MODIS:\nno data\n(clouds)", ha="center", va="bottom", fontsize=11,
-                    color="#555555")
+            ax.text(i + w / 2, 0.004, nodata, ha="center", va="bottom", fontsize=11, color="#555555")
     ax.set_xticks(range(len(groups)))
     ax.set_xticklabels([g[2] for g in groups])
     ax.set_ylabel("AOD at 550 nm")
-    ax.set_ylim(0, 0.08)
+    ax.set_ylim(0, 0.1)
     ax.set_title("Calitoo vs MODIS (550 nm)")
     ax.legend(loc="upper right")
     ax.grid(axis="x", visible=False)
@@ -307,6 +474,12 @@ def main():
     fig1(cal)
     bars = fig2(cal)
     fig3(cal, aer)
+    fig3b(cal)
+    fig3c(cal)
+    _fig_nov14_restyled(cal, "Davos", "davos_nov14_screened",
+                        "3b_calitoo_bern_vs_aeronet_davos_nov14_restyled.png")
+    _fig_nov14_restyled(cal, "Payerne", "payerne_nov14",
+                        "3c_calitoo_bern_vs_aeronet_payerne_nov14_restyled.png")
     fig4(modis)
     b = fig5()
     lg, m0, m1, r_au = fig6(cal)

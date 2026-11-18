@@ -35,6 +35,25 @@ CAL_WL = pc.WL                 # 465, 540, 619 nm
 # AERONET channel pairs used for log-log interpolation to each target wavelength
 INTERP_PAIRS = {465: (440, 500), 540: (500, 675), 550: (500, 675), 619: (500, 675)}
 AER_MARKER, CAL_MARKER = "o", "D"
+# 14 Nov 2026: Calitoo near Bern / in Bern vs two AERONET stations – neither is a same-site
+# validation like Davos 7 Oct:
+#   Davos   Level 1.0 (own cloud screening), ~185 km away, ~1000 m higher -> figure 3b
+#   Payerne Level 1.5 (AERONET cloud screening), 37–42 km away, Swiss Plateau -> figure 3c (regional)
+# Same interpolation and ± window matching as 7 Oct, written to separate outputs so that the
+# Davos 7 Oct results (calitoo_vs_aeronet.csv, figure 5) are unchanged.
+NOV14_COMPARISONS = [
+    dict(file=BASE / "aeronet_data" / "20261114_20261114_Davos.csv",
+         aer_out="aeronet_davos_nov14_screened.csv", match_out="calitoo_nov14_vs_aeronet_davos.csv",
+         note="siti diversi (~185 km, ~1000 m di dislivello) – confronto tra località"),
+    dict(file=BASE / "aeronet_data" / "20261114_20261114_Payerne.csv",
+         aer_out="aeronet_payerne_nov14.csv", match_out="calitoo_nov14_vs_aeronet_payerne.csv",
+         note="confronto regionale con una stazione vicina (37–42 km)"),
+]
+DAY_NOV14 = pd.Timestamp("2026-11-14").date()
+CALITOO_SITES_NOV14 = ["Near Bern", "Bern"]
+# extra cloud screen (same as figure 7 in make_simple_figures.py): AOD 540 > 2 × median of the
+# site/day acquisition. Needed because a single-point session escapes the session-outlier test.
+CLOUD_FACTOR_NOV14 = 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -42,8 +61,9 @@ AER_MARKER, CAL_MARKER = "o", "D"
 # ---------------------------------------------------------------------------
 def load_aeronet(path=AERONET_FILE):
     """Return (DataFrame, meta). Adds interpolated AOD at 465/540/550/619 and a cloud flag."""
-    head = path.read_text().splitlines()[:7]
-    hdr_row = next(i for i, l in enumerate(head) if l.startswith("Date(dd:mm:yyyy)"))
+    head = path.read_text().splitlines()[:8]
+    # header row: starts with Date(...) (download tool) or AERONET_Site,Date(...) (web service)
+    hdr_row = next(i for i, l in enumerate(head) if "Date(dd:mm:yyyy)" in l.split(",")[:2])
     df = pd.read_csv(path, skiprows=hdr_row, na_values=[-999, -999.0])
     df["datetime_utc"] = pd.to_datetime(df["Date(dd:mm:yyyy)"] + " " + df["Time(hh:mm:ss)"],
                                         format="%d:%m:%Y %H:%M:%S", utc=True)
@@ -71,6 +91,8 @@ def load_aeronet(path=AERONET_FILE):
     df["screened_ok"] = ~(df["cloud_triplet"] | df["cloud_gross"]) & df["AOD_500nm"].notna()
 
     lvl = df["Data_Quality_Level"].iloc[0]
+    if lvl != "lev10":   # Level 1.5/2.0 are already cloud-screened by AERONET: keep all its points
+        df["screened_ok"] = df["AOD_500nm"].notna()
     meta = dict(level=LEVEL_NAMES.get(lvl, lvl), level_code=lvl, title=head[2].strip(),
                 site=df["AERONET_Site_Name"].iloc[0],
                 lat=df["Site_Latitude(Degrees)"].iloc[0], lon=df["Site_Longitude(Degrees)"].iloc[0],
@@ -98,10 +120,10 @@ def aeronet_daily_550(df=None):
     return pd.DataFrame(rows)
 
 
-def load_calitoo_day():
+def load_calitoo_day(site=CALITOO_SITE, day=DAY):
     cal = pd.read_csv(OUT_DIR / "calitoo_all.csv", parse_dates=["datetime_utc"])
-    cal = cal[(cal["site"] == CALITOO_SITE) & cal["qc_ok"]].copy()
-    cal = cal[cal["datetime_utc"].dt.date == DAY]
+    cal = cal[(cal["site"] == site) & cal["qc_ok"]].copy()
+    cal = cal[cal["datetime_utc"].dt.date == day]
     cal["aot_550"] = cal["aot_540"] * (550 / 540) ** (-cal["angstrom"])
     return cal
 
@@ -311,23 +333,73 @@ def report(aer, meta, cal, matches):
 
 
 # ---------------------------------------------------------------------------
+# 14 NOV: CALITOO NEAR BERN / BERN vs AERONET DAVOS (fig. 3b) AND PAYERNE (fig. 3c, regional)
+# ---------------------------------------------------------------------------
+AER_KEEP = ["datetime_utc", "AOD_340nm", "AOD_380nm", "AOD_440nm", "AOD_500nm", "AOD_675nm",
+            "AOD_870nm", "AOD_1020nm", "AOD_1640nm", "aod_465", "aod_540", "aod_550", "aod_619",
+            "440-870_Angstrom_Exponent", "440-675_Angstrom_Exponent", "alpha_465_619",
+            "Triplet_Variability_870", "Triplet_Variability_1020", "cloud_triplet",
+            "cloud_gross", "screened_ok"]
+
+
+def compare_nov14(cfg):
+    if not cfg["file"].exists():
+        print(f"  ({cfg['file'].name} not found: 14 Nov comparison skipped)")
+        return
+    aer, meta = load_aeronet(cfg["file"])
+    a = aer[aer["date"] == DAY_NOV14].copy()
+    a["station_lat"], a["station_lon"], a["station_elev_m"] = meta["lat"], meta["lon"], meta["elev"]
+    a[AER_KEEP + ["station_lat", "station_lon", "station_elev_m"]].to_csv(
+        OUT_DIR / cfg["aer_out"], index=False, float_format="%.5g")
+    print(f"\n================ 14 NOV: CALITOO (NEAR BERN / BERN) vs AERONET {meta['site'].upper()} ================")
+    print(f"ATTENZIONE: {cfg['note']}, non una validazione nello stesso punto.")
+    print(f"File: {cfg['file'].name} – {meta['level']} – stazione {meta['site']} "
+          f"{meta['lat']:.5f}N {meta['lon']:.5f}E, {meta['elev']:.0f} m")
+    print(f"AERONET 14/11: {len(a)} misure, {a['screened_ok'].sum()} usate "
+          f"({a['datetime_utc'].min():%H:%M}–{a['datetime_utc'].max():%H:%M} UTC)")
+    out = []
+    for site in CALITOO_SITES_NOV14:
+        cal = load_calitoo_day(site, DAY_NOV14)
+        cloud = cal["aot_540"] > CLOUD_FACTOR_NOV14 * cal["aot_540"].median()
+        for _, r in cal[cloud].iterrows():
+            print(f"  {site}: esclusa {r['datetime_utc']:%H:%M:%S} UTC (nuvola: AOD540={r['aot_540']:.3f}, "
+                  f"α={r['angstrom']:.2f}, R²={r['fit_r2']:.2f}; passa il QC della pipeline)")
+        cal = cal[~cloud]
+        dist = pc.haversine_km(meta["lat"], meta["lon"], cal["lat"].mean(), cal["lon"].mean())
+        print(f"  Calitoo {site}: n={len(cal)}, {cal['datetime_utc'].min():%H:%M}–"
+              f"{cal['datetime_utc'].max():%H:%M} UTC, {cal['lat'].mean():.4f}N {cal['lon'].mean():.4f}E, "
+              f"{cal['alt_m'].median():.0f} m GPS -> {dist:.0f} km da AERONET {meta['site']}")
+        for w in MATCH_WINDOWS_MIN:
+            m = match(cal, aer, w)
+            m.insert(0, "calitoo_site", site)
+            m.insert(1, "distance_km", dist)
+            out.append(m)
+            if w == MATCH_WINDOWS_MIN[0]:
+                un = m.loc[m["n_aeronet"] == 0, "time_utc"].tolist()
+                print(f"    ±{w} min: {m['n_aeronet'].gt(0).sum()}/{len(m)} con AERONET"
+                      + (f" (senza AERONET: {', '.join(un)} UTC)" if un else "") + "; "
+                      + ", ".join(f"{wl} nm Calitoo−AERONET {stats(m, wl)['bias']:+.4f}"
+                                  for wl in (465, 540, 619)))
+    pd.concat(out, ignore_index=True).drop(columns="datetime_utc").to_csv(
+        OUT_DIR / cfg["match_out"], index=False, float_format="%.5g")
+    print(f"  saved {cfg['aer_out']}, {cfg['match_out']}")
+
+
+# ---------------------------------------------------------------------------
 def main():
     aer, meta = load_aeronet()
     cal = load_calitoo_day()
     matches = {w: match(cal, aer, w) for w in MATCH_WINDOWS_MIN}
     out = pd.concat(matches.values(), ignore_index=True).drop(columns="datetime_utc")
     out.to_csv(OUT_DIR / "calitoo_vs_aeronet.csv", index=False, float_format="%.5g")
-    keep = ["datetime_utc", "AOD_340nm", "AOD_380nm", "AOD_440nm", "AOD_500nm", "AOD_675nm",
-            "AOD_870nm", "AOD_1020nm", "AOD_1640nm", "aod_465", "aod_540", "aod_550", "aod_619",
-            "440-870_Angstrom_Exponent", "440-675_Angstrom_Exponent", "alpha_465_619",
-            "Triplet_Variability_870", "Triplet_Variability_1020", "cloud_triplet",
-            "cloud_gross", "screened_ok"]
-    aer[keep].to_csv(OUT_DIR / "aeronet_davos_screened.csv", index=False, float_format="%.5g")
+    aer[AER_KEEP].to_csv(OUT_DIR / "aeronet_davos_screened.csv", index=False, float_format="%.5g")
     print("  saved calitoo_vs_aeronet.csv, aeronet_davos_screened.csv")
     fig_timeseries(aer, cal, meta)
     fig_scatter(matches[MATCH_WINDOWS_MIN[0]], meta)
     fig_spectrum(aer, cal, meta)
     report(aer, meta, cal, matches)
+    for cfg in NOV14_COMPARISONS:
+        compare_nov14(cfg)
 
 
 if __name__ == "__main__":
