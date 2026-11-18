@@ -10,7 +10,9 @@ measurements are compared with the **AERONET** station in Davos and with
 ```
 Data AtmCalitoo/
 ├── calitoo_*.txt               raw Calitoo exports, one file per day (see below)
-├── aeronet_data/               AERONET Davos, Version 3 direct-sun AOD (Level 1.0), 5–10 Oct 2026
+├── aeronet_data/               AERONET Version 3 direct-sun AOD: Davos Level 1.0, 5–10 Oct 2026;
+│                               Davos Level 1.0, 14 Nov 2026 (figure 3b, different location);
+│                               Payerne Level 1.5, 14 Nov 2026 (figure 3c, regional comparison)
 ├── giovanni_data/              MODIS-Aqua MYD08_D3 v6.1 AOD 550 nm, area-averaged (GIOVANNI CSV + PNG)
 │
 ├── plot_calitoo.py             1. read + merge Calitoo files, QC, per-session statistics, overview plots
@@ -45,6 +47,20 @@ latitude (ddmm.mmmmm N); longitude (dddmm.mmmmm E); solar elevation (°); AOD 46
 The AOD values are taken **as computed by the instrument**; the scripts do not
 recompute them from the raw counts. The instrument's calibration constants
 (CN0) are not included in the export.
+
+### 14 November 2026 update
+
+- Added Aiyana's Calitoo measurements from `calitoo_nov14.txt`, kept as two locations:
+  Near Bern (before 14:00 local) and Bern (after 14:00 local).
+- Figure 3b compares them with AERONET Davos (Level 1.0, ~185 km away) and figure 3c with
+  AERONET Payerne (Level 1.5, 37–42 km away). Neither station is collocated, so these
+  comparisons are kept separate from the collocated Davos validation of 7 October.
+- Figure 4 has one "Bern area — 14 Nov" bar from the nine measurements in the assumed Aqua
+  comparison window (10:45–13:45 UTC). MODIS-Aqua data were downloaded for 6–9° E, 46–48° N
+  (`giovanni_data/Bern14.11.csv`), but the 14 November value is missing, so the figure shows
+  "MODIS: no data".
+
+Details: [`figures_simple/notes.md`](Data%20AtmCalitoo/figures_simple/notes.md).
 
 ## Requirements
 
